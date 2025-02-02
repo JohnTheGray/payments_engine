@@ -49,11 +49,26 @@ fn print_balances(mut balances: Vec<ClientBalance>) {
 
     // Balances
     for balance in balances {
+        // Print to 4 decimal just in case we get some weird floating point approximation like 100.5555000000001234.
         println!(
             "{},{},{},{},{}",
-            balance.client_id, balance.available, balance.held, balance.total, balance.locked
+            balance.client_id,
+            format_4_decimals(balance.available),
+            format_4_decimals(balance.held),
+            format_4_decimals(balance.total),
+            balance.locked
         );
     }
+}
+
+fn format_4_decimals(value: f64) -> String {
+    let formatted = format!("{:.4}", value);
+
+    // Trim excess zeros.
+    formatted
+        .trim_end_matches('0')
+        .trim_end_matches('.')
+        .to_string()
 }
 
 #[derive(Parser, Debug)]
