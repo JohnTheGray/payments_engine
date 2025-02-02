@@ -1,5 +1,6 @@
+use async_stream::try_stream;
 use csv_async::AsyncReaderBuilder;
-use futures::TryStreamExt;
+use futures::{Stream, StreamExt};
 use serde::Deserialize;
 use thiserror::Error;
 use tokio::fs;
@@ -96,18 +97,19 @@ impl TransactionDto {
     }
 }
 
-pub async fn read_transactions(
-    file_name: &str,
-) -> Result<Vec<TransactionDto>, Box<dyn std::error::Error>> {
-    let file = fs::File::open(file_name).await?;
-
+// Read transactions as a stream hence the whole CSV does not need to be in memory at once.
+pub fn read_transactions(
+    file: fs::File,
+) -> impl Stream<Item = Result<TransactionDto, Box<dyn std::error::Error>>> {
     let mut reader = AsyncReaderBuilder::new()
         .has_headers(true)
         .create_deserializer(file);
 
-    let records = reader.deserialize::<TransactionDto>();
+    try_stream! {
+      let mut transactions = reader.deserialize::<TransactionDto>();
 
-    let res: Vec<TransactionDto> = records.try_collect().await?;
-
-    Ok(res)
+      while let Some(transaction) = transactions.next().await {
+        yield transaction?;
+      }
+    }
 }

@@ -1,4 +1,5 @@
 use clap::Parser;
+use futures::StreamExt;
 use payments_engine::{
     csv,
     transaction_manager::{ClientBalance, TransactionManager},
@@ -9,11 +10,16 @@ use std::error;
 async fn main() -> Result<(), Box<dyn error::Error>> {
     let args = Args::parse();
 
-    let transactions = csv::read_transactions(&args.filename).await?;
+    let file = tokio::fs::File::open(&args.filename).await?;
 
     let mut manager = TransactionManager::new();
 
-    for dto in transactions {
+    let stream = csv::read_transactions(file);
+
+    futures::pin_mut!(stream);
+    while let Some(result) = stream.next().await {
+        let dto = result?;
+
         dto.to_transaction()
             .map_err(|err| Box::new(err) as Box<dyn std::error::Error>)
             .and_then(|tx| {
